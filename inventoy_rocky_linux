@@ -1,0 +1,39 @@
+---
+- name: Collecte d'infos sur Rocky Linux
+  hosts: all
+  gather_facts: yes
+
+  tasks:
+    - name: Afficher la version de l'OS
+      debug:
+        msg: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+    - name: Afficher l'adresse IP
+      debug:
+        msg: "{{ ansible_default_ipv4.address }}"
+
+    - name: Lister les utilisateurs
+      command: cut -d: -f1 /etc/passwd
+      register: users_list
+
+    - name: Afficher les utilisateurs
+      debug:
+        msg: "{{ users_list.stdout_lines }}"
+
+    - name: Lister les services actifs
+      command: systemctl list-units --type=service --state=running --no-pager --no-legend
+      register: running_services
+
+    - name: Afficher les services actifs
+      debug:
+        msg: "{{ running_services.stdout_lines }}"
+
+    - name: Compter les mises à jour disponibles
+      yum:
+        list: updates
+      register: updates_result
+      ignore_errors: yes
+
+    - name: Afficher le nombre de mises à jour
+      debug:
+        msg: "Nombre de mises à jour disponibles : {{ updates_result.results | length if updates_result.results is defined else '0' }}"
