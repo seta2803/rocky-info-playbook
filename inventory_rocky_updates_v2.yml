@@ -1,4 +1,3 @@
----
 - name: Collecte d’infos système et mises à jour sécurité sur Rocky Linux
   hosts: all
   become: yes
