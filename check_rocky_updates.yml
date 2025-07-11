@@ -1,8 +1,8 @@
 ---
-- name: Vérifier les mises à jour de sécurité critiques et importantes
+- name: Vérifier l'état de sécurité et système de la machine Rocky Linux
   hosts: all
   become: yes
-  gather_facts: no
+  gather_facts: yes  # Pour récupérer les infos système
 
   tasks:
     - name: Vérifier les mises à jour de sécurité (Critical & Important)
@@ -22,9 +22,18 @@
       set_fact:
         important_updates: "{{ update_lines | select('search', 'Important') | list | length }}"
 
-    - name: Afficher le résumé des mises à jour de sécurité
+    - name: Récupérer l'uptime
+      shell: awk '{print int($1/3600)"h "int(($1%3600)/60)"m"}' /proc/uptime
+      register: system_uptime
+      changed_when: false
+
+    - name: Afficher le résumé système et sécurité
       debug:
         msg: |
-          Nombre de mises à jour :
+          ✅ Informations système :
+          - OS       : {{ ansible_distribution }} {{ ansible_distribution_version }}
+          - Uptime   : {{ system_uptime.stdout }}
+
+          🔐 Mises à jour de sécurité :
           - Critiques : {{ critical_updates }}
           - Importantes : {{ important_updates }}
