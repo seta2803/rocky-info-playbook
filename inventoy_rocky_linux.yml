@@ -12,7 +12,7 @@
         msg: "{{ ansible_default_ipv4.address }}"
 
     - name: Lister les utilisateurs
-      command: cut -d: -f1 /etc/passwd
+      command: "cut -d: -f1 /etc/passwd"
       register: users_list
 
     - name: Afficher les utilisateurs
@@ -20,7 +20,7 @@
         msg: "{{ users_list.stdout_lines }}"
 
     - name: Lister les services actifs
-      command: systemctl list-units --type=service --state=running --no-pager --no-legend
+      command: "systemctl list-units --type=service --state=running --no-pager --no-legend"
       register: running_services
 
     - name: Afficher les services actifs
