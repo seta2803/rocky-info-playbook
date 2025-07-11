@@ -1,0 +1,46 @@
+---
+- name: Récapitulatif de l'état des mises à jour sur plusieurs serveurs
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  vars:
+    report_data: []
+
+  tasks:
+    - name: Obtenir la version de l'OS
+      set_fact:
+        os_version: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+    - name: Obtenir les mises à jour de sécurité critiques
+      shell: dnf updateinfo list security | grep Critical
+      register: critical_updates_raw
+      failed_when: false
+
+    - name: Obtenir les mises à jour de sécurité importantes
+      shell: dnf updateinfo list security | grep Important
+      register: important_updates_raw
+      failed_when: false
+
+    - name: Compter les mises à jour critiques
+      set_fact:
+        critical_updates_count: "{{ critical_updates_raw.stdout_lines | length }}"
+
+    - name: Compter les mises à jour importantes
+      set_fact:
+        important_updates_count: "{{ important_updates_raw.stdout_lines | length }}"
+
+    - name: Construire un résumé pour ce serveur
+      set_fact:
+        server_report: {
+          "host": "{{ inventory_hostname }}",
+          "os_version": "{{ os_version }}",
+          "critical_updates": "{{ critical_updates_count }}",
+          "important_updates": "{{ important_updates_count }}"
+        }
+
+    - name: Afficher le résumé du serveur
+      debug:
+        var: server_report
+
+  # Ceci s'affichera pour chaque hôte individuellement, mais AWX les regroupe dans l'onglet "Output"
