@@ -1,0 +1,65 @@
+---
+- name: Vérifier les mises à jour critiques et importantes sur plusieurs distributions
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: Déterminer la distribution Linux
+      set_fact:
+        os_family: "{{ ansible_os_family | lower }}"
+        os_name: "{{ ansible_distribution | lower }}"
+
+    - name: Afficher la version de l'OS
+      debug:
+        msg: "OS: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+    - name: Ubuntu/Debian - Récupérer les mises à jour de sécurité
+      shell: |
+        apt list --upgradable 2>/dev/null | grep -i security || true
+      when: os_family == "debian"
+      register: debian_updates
+      changed_when: false
+
+    - name: RedHat/Fedora (RHEL, CentOS, Alma) - Récupérer les mises à jour critiques
+      shell: dnf updateinfo list security | grep Critical || true
+      when: os_family == "redhat"
+      register: critical_updates_raw
+      changed_when: false
+
+    - name: RedHat/Fedora (RHEL, CentOS, Alma) - Récupérer les mises à jour importantes
+      shell: dnf updateinfo list security | grep Important || true
+      when: os_family == "redhat"
+      register: important_updates_raw
+      changed_when: false
+
+    - name: Compter les mises à jour critiques (RedHat)
+      when: os_family == "redhat"
+      set_fact:
+        critical_count: "{{ critical_updates_raw.stdout_lines | length }}"
+        critical_list: "{{ critical_updates_raw.stdout_lines }}"
+
+    - name: Compter les mises à jour importantes (RedHat)
+      when: os_family == "redhat"
+      set_fact:
+        important_count: "{{ important_updates_raw.stdout_lines | length }}"
+        important_list: "{{ important_updates_raw.stdout_lines }}"
+
+    - name: Afficher les mises à jour de sécurité (Ubuntu/Debian)
+      when: os_family == "debian"
+      debug:
+        msg: |
+          {{ ansible_hostname }} ({{ ansible_distribution }}):
+          Mises à jour de sécurité : 
+          {{ debian_updates.stdout_lines | default([]) }}
+
+    - name: Afficher les mises à jour critiques et importantes (RedHat)
+      when: os_family == "redhat"
+      debug:
+        msg: |
+          {{ ansible_hostname }} ({{ ansible_distribution }}):
+          Mises à jour CRITIQUES : {{ critical_count }}
+          {{ critical_list | join('\n') }}
+
+          Mises à jour IMPORTANTES : {{ important_count }}
+          {{ important_list | join('\n') }}
