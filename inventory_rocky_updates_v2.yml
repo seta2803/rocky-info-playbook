@@ -1,0 +1,60 @@
+---
+- name: Collecte d’infos système et mises à jour sécurité sur Rocky Linux
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: Obtenir les mises à jour de sécurité Critiques
+      shell: dnf updateinfo list security severity=Critical
+      register: critical_updates_raw
+      failed_when: false
+
+    - name: Obtenir les mises à jour de sécurité Importantes
+      shell: dnf updateinfo list security severity=Important
+      register: important_updates_raw
+      failed_when: false
+
+    - name: Compter les mises à jour critiques
+      set_fact:
+        critical_updates_count: "{{ critical_updates_raw.stdout_lines | select('match', '\\S') | list | length }}"
+
+    - name: Compter les mises à jour importantes
+      set_fact:
+        important_updates_count: "{{ important_updates_raw.stdout_lines | select('match', '\\S') | list | length }}"
+
+    - name: Récupérer uptime
+      shell: uptime -p
+      register: uptime
+      changed_when: false
+
+    - name: Récupérer version OS
+      shell: cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2 | tr -d '"'
+      register: os_version
+      changed_when: false
+
+    - name: Lister les utilisateurs
+      shell: cut -d: -f1 /etc/passwd
+      register: users
+      changed_when: false
+
+    - name: Lister les services actifs
+      shell: systemctl list-units --type=service --state=running --no-legend --no-pager | awk '{print $1}'
+      register: active_services
+      changed_when: false
+
+    - name: Lister les adresses IP
+      shell: ip -4 addr show | grep inet | awk '{print $2}'
+      register: ip_addresses
+      changed_when: false
+
+    - name: Afficher le résumé
+      debug:
+        msg: |
+          OS Version: {{ os_version.stdout }}
+          Uptime: {{ uptime.stdout }}
+          Nombre de mises à jour critiques: {{ critical_updates_count }}
+          Nombre de mises à jour importantes: {{ important_updates_count }}
+          Utilisateurs: {{ users.stdout_lines | join(', ') }}
+          Services actifs: {{ active_services.stdout_lines | join(', ') }}
+          Adresses IP: {{ ip_addresses.stdout_lines | join(', ') }}
