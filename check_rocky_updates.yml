@@ -1,0 +1,30 @@
+---
+- name: Vérifier les mises à jour de sécurité critiques et importantes
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+    - name: Vérifier les mises à jour de sécurité (Critical & Important)
+      shell: dnf updateinfo list security severity=Critical,Important || true
+      register: dnf_security_updates
+      changed_when: false
+
+    - name: Extraire les lignes de mises à jour
+      set_fact:
+        update_lines: "{{ dnf_security_updates.stdout_lines | select('match', '^RHSA') | list }}"
+
+    - name: Compter les mises à jour Critical
+      set_fact:
+        critical_updates: "{{ update_lines | select('search', 'Critical') | list | length }}"
+
+    - name: Compter les mises à jour Important
+      set_fact:
+        important_updates: "{{ update_lines | select('search', 'Important') | list | length }}"
+
+    - name: Afficher le résumé des mises à jour de sécurité
+      debug:
+        msg: |
+          Nombre de mises à jour :
+          - Critiques : {{ critical_updates }}
+          - Importantes : {{ important_updates }}
