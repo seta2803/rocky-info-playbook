@@ -1,0 +1,26 @@
+- name: Vérifier les mises à jour critiques et importantes
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Obtenir les mises à jour de sécurité Critiques
+      shell: "dnf updateinfo list security severity=Critical | grep -c '^RHSA'"
+      register: critical_updates
+      changed_when: false
+
+    - name: Obtenir les mises à jour de sécurité Importantes
+      shell: "dnf updateinfo list security severity=Important | grep -c '^RHSA'"
+      register: important_updates
+      changed_when: false
+
+    - name: Afficher le résumé système et sécurité
+      debug:
+        msg: |
+          ✅ Informations système :
+          - OS       : {{ ansible_distribution }} {{ ansible_distribution_version }}
+          - Uptime   : {{ ansible_uptime_seconds | int // 3600 }}h {{ (ansible_uptime_seconds | int % 3600) // 60 }}m
+
+          🔐 Mises à jour de sécurité :
+          - Critiques : {{ critical_updates.stdout }}
+          - Importantes : {{ important_updates.stdout }}
