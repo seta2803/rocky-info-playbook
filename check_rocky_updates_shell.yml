@@ -1,23 +1,30 @@
-- name: Obtenir les mises à jour de sécurité Critiques
-  shell: dnf updateinfo list security severity=Critical
-  register: critical_updates_raw
-  failed_when: false
+---
+- name: Vérifier les mises à jour critiques et importantes sur Rocky Linux
+  hosts: all
+  become: yes
+  gather_facts: yes
 
-- name: Obtenir les mises à jour de sécurité Importantes
-  shell: dnf updateinfo list security severity=Important
-  register: important_updates_raw
-  failed_when: false
+  tasks:
+    - name: Obtenir les mises à jour de sécurité Critiques
+      shell: dnf updateinfo list security severity=Critical
+      register: critical_updates_raw
+      failed_when: false
 
-- name: Compter les mises à jour critiques
-  set_fact:
-    critical_updates_count: "{{ critical_updates_raw.stdout_lines | select('match', '\\S') | list | length }}"
+    - name: Obtenir les mises à jour de sécurité Importantes
+      shell: dnf updateinfo list security severity=Important
+      register: important_updates_raw
+      failed_when: false
 
-- name: Compter les mises à jour importantes
-  set_fact:
-    important_updates_count: "{{ important_updates_raw.stdout_lines | select('match', '\\S') | list | length }}"
+    - name: Compter les mises à jour critiques
+      set_fact:
+        critical_updates_count: "{{ critical_updates_raw.stdout_lines | select('match', '\\S') | list | length }}"
 
-- name: Afficher le nombre de mises à jour critiques et importantes
-  debug:
-    msg: |
-      Nombre de mises à jour critiques : {{ critical_updates_count }}
-      Nombre de mises à jour importantes : {{ important_updates_count }}
+    - name: Compter les mises à jour importantes
+      set_fact:
+        important_updates_count: "{{ important_updates_raw.stdout_lines | select('match', '\\S') | list | length }}"
+
+    - name: Afficher le nombre de mises à jour critiques et importantes
+      debug:
+        msg: |
+          Nombre de mises à jour critiques : {{ critical_updates_count }}
+          Nombre de mises à jour importantes : {{ important_updates_count }}
