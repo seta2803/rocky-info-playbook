@@ -6,25 +6,33 @@
 
   tasks:
     - name: Obtenir les mises à jour de sécurité Critiques
-      shell: dnf updateinfo list security severity=Critical
+      shell: dnf updateinfo list security | grep Critical
       register: critical_updates_raw
       failed_when: false
 
     - name: Obtenir les mises à jour de sécurité Importantes
-      shell: dnf updateinfo list security severity=Important
+      shell: dnf updateinfo list security | grep Important
       register: important_updates_raw
       failed_when: false
 
     - name: Compter les mises à jour critiques
       set_fact:
-        critical_updates_count: "{{ critical_updates_raw.stdout_lines | select('match', '\\S') | list | length }}"
+        critical_updates_count: "{{ critical_updates_raw.stdout_lines | length }}"
 
     - name: Compter les mises à jour importantes
       set_fact:
-        important_updates_count: "{{ important_updates_raw.stdout_lines | select('match', '\\S') | list | length }}"
+        important_updates_count: "{{ important_updates_raw.stdout_lines | length }}"
 
     - name: Afficher le nombre de mises à jour critiques et importantes
       debug:
         msg: |
           Nombre de mises à jour critiques : {{ critical_updates_count }}
           Nombre de mises à jour importantes : {{ important_updates_count }}
+
+    - name: Afficher les mises à jour critiques
+      debug:
+        msg: "{{ critical_updates_raw.stdout_lines }}"
+
+    - name: Afficher les mises à jour importantes
+      debug:
+        msg: "{{ important_updates_raw.stdout_lines }}"
