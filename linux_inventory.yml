@@ -15,7 +15,8 @@
         state: directory
         mode: '0777'
       delegate_to: localhost
-      become: false  # Ne pas essayer d’élever les privilèges dans AWX
+      become: true  # cette fois on autorise l'élévation
+      become_user: root
   
     - name: Déterminer la distribution Linux
       set_fact:
