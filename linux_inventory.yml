@@ -114,30 +114,3 @@
         msg: |
           SELinux : {{ selinux_status.stdout | default('N/A') }}
           Firewall : {{ firewall_status_result | default('N/A') }}
-
-    - name: Préparer les données pour le rapport
-      set_fact:
-        host_report: >-
-          {{
-            {
-              'hostname': ansible_hostname,
-              'os': ansible_distribution ~ ' ' ~ ansible_distribution_version,
-              'uptime': uptime_result.stdout | default('N/A'),
-              'selinux': selinux_status.stdout | default('N/A'),
-              'firewall': firewall_status_result | default('N/A'),
-              'critical_updates': critical_count | default(0),
-              'important_updates': important_count | default(0),
-              'debian_security_updates': debian_updates_count | default(0)
-            }
-          }}
-
-    - name: Enregistrer le rapport JSON sur le noeud distant
-      copy:
-        content: "{{ host_report | to_nice_json }}"
-        dest: "/tmp/ansible_report_{{ inventory_hostname }}.json"
-
-    - name: Récupérer le rapport sur la machine de contrôle AWX
-      fetch:
-        src: "/tmp/ansible_report_{{ inventory_hostname }}.json"
-        dest: "/var/lib/awx/reports/"
-        flat: yes
