@@ -151,7 +151,7 @@
     - name: Enregistrer les résultats dans un fichier JSON (temporaire)
       copy:
         content: "{{ host_report | to_nice_json }}"
-        dest: "/tmp/ansible_report_{{ inventory_hostname }}.json"
+        dest: "dest: "/var/lib/awx/reports/ansible_report_{{ inventory_hostname }}.json"
       delegate_to: localhost
       become: false  # <- important ici
       run_once: false
