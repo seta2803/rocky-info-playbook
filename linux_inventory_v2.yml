@@ -1,0 +1,143 @@
+---
+- name: Vérifier l'état de sécurité des serveurs
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: Déterminer la distribution Linux
+      set_fact:
+        os_family: "{{ ansible_os_family | lower }}"
+        os_name: "{{ ansible_distribution | lower }}"
+
+    - name: Afficher la version de l'OS
+      debug:
+        msg: "OS: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+    - name: Obtenir l'uptime du système
+      shell: uptime -p
+      register: uptime_result
+      changed_when: false
+
+    - name: Afficher l'uptime
+      debug:
+        msg: "Uptime : {{ uptime_result.stdout }}"
+
+    # Ubuntu / Debian
+    - name: Ubuntu/Debian - Récupérer les mises à jour de sécurité
+      shell: apt-get -s dist-upgrade | grep "^Inst" | grep -i security || true
+      register: debian_updates
+      changed_when: false
+      when: os_family == "debian"
+
+    - name: Compter les mises à jour de sécurité (Debian)
+      set_fact:
+        debian_updates_count: "{{ debian_updates.stdout_lines | length }}"
+      when: os_family == "debian"
+
+    - name: Afficher les mises à jour de sécurité Ubuntu/Debian
+      debug:
+        msg: |
+          Mises à jour de sécurité : {{ debian_updates_count }}
+          {% for pkg in debian_updates.stdout_lines %}
+          - {{ pkg }}
+          {% endfor %}
+      when: os_family == "debian"
+
+    - name: Vérifier le statut UFW (Debian)
+      shell: ufw status | grep -q active && echo "Actif" || echo "Inactif"
+      register: debian_firewall_status
+      changed_when: false
+      when: os_family == "debian"
+
+    # RedHat / CentOS / Alma / Rocky
+    - name: RedHat/Fedora - Récupérer les mises à jour critiques
+      shell: dnf updateinfo list security | grep Critical || true
+      register: critical_updates_raw
+      changed_when: false
+      when: os_family == "redhat"
+
+    - name: RedHat/Fedora - Récupérer les mises à jour importantes
+      shell: dnf updateinfo list security | grep Important || true
+      register: important_updates_raw
+      changed_when: false
+      when: os_family == "redhat"
+
+    - name: Compter les mises à jour critiques et importantes (RedHat)
+      set_fact:
+        critical_count: "{{ critical_updates_raw.stdout_lines | length }}"
+        critical_list: "{{ critical_updates_raw.stdout_lines }}"
+        important_count: "{{ important_updates_raw.stdout_lines | length }}"
+        important_list: "{{ important_updates_raw.stdout_lines }}"
+      when: os_family == "redhat"
+
+    - name: Afficher les mises à jour critiques et importantes (RedHat)
+      debug:
+        msg: |
+          Mises à jour CRITIQUES : {{ critical_count }}
+          {% for pkg in critical_list %}
+          - {{ pkg }}
+          {% endfor %}
+
+          Mises à jour IMPORTANTES : {{ important_count }}
+          {% for pkg in important_list %}
+          - {{ pkg }}
+          {% endfor %}
+      when: os_family == "redhat"
+
+    - name: Vérifier le statut de SELinux
+      shell: getenforce
+      register: selinux_status
+      changed_when: false
+      when: os_family == "redhat"
+
+    - name: Vérifier le statut du firewall (firewalld)
+      shell: systemctl is-active firewalld || echo "inactive"
+      register: redhat_firewall_status
+      changed_when: false
+      when: os_family == "redhat"
+
+    - name: Déterminer le statut combiné du firewall
+      set_fact:
+        firewall_status_result: >-
+          {% if redhat_firewall_status is defined and redhat_firewall_status.stdout is defined %}
+            {{ redhat_firewall_status.stdout }}
+          {% elif debian_firewall_status is defined and debian_firewall_status.stdout is defined %}
+            {{ debian_firewall_status.stdout }}
+          {% else %}
+            N/A
+          {% endif %}
+
+
+    - name: Afficher les statuts SELinux et Firewall
+      debug:
+        msg: |
+          SELinux : {{ selinux_status.stdout | default('N/A') }}
+          Firewall : {{ firewall_status_result | default('N/A') }}
+
+    - name: Préparer les données pour le rapport
+      set_fact:
+        host_report: >-
+          {{
+            {
+              'hostname': ansible_hostname,
+              'os': ansible_distribution ~ ' ' ~ ansible_distribution_version,
+              'uptime': uptime_result.stdout | default('N/A'),
+              'selinux': selinux_status.stdout | default('N/A'),
+              'firewall': firewall_status_result | default('N/A'),
+              'critical_updates': critical_count | default(0),
+              'important_updates': important_count | default(0),
+              'debian_security_updates': debian_updates_count | default(0)
+            }
+          }}
+
+    - name: Enregistrer le rapport JSON sur le noeud distant
+      copy:
+        content: "{{ host_report | to_nice_json }}"
+        dest: "/tmp/ansible_report_{{ inventory_hostname }}.json"
+
+    - name: Récupérer le rapport sur la machine de contrôle AWX
+      fetch:
+        src: "/tmp/ansible_report_{{ inventory_hostname }}.json"
+        dest: "/var/lib/awx/reports/"
+        flat: yes
