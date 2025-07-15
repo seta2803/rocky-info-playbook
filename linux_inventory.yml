@@ -9,6 +9,14 @@
     selinux_status_result: "N/A"
 
   tasks:
+    - name: Créer le dossier de rapports sur AWX (si nécessaire)
+      file:
+        path: "/var/lib/awx/reports"
+        state: directory
+        mode: '0777'
+      delegate_to: localhost
+      become: false  # Ne pas essayer d’élever les privilèges dans AWX
+  
     - name: Déterminer la distribution Linux
       set_fact:
         os_family: "{{ ansible_os_family | lower }}"
