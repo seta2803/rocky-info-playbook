@@ -1,5 +1,5 @@
 ---
-- name: Vérifier les mises à jour critiques et importantes sur plusieurs distributions
+- name: Vérifier l'état de sécurité des serveurs
   hosts: all
   become: yes
   gather_facts: yes
@@ -14,9 +14,20 @@
       debug:
         msg: "OS: {{ ansible_distribution }} {{ ansible_distribution_version }}"
 
+    - name: Obtenir l'uptime du système
+      shell: uptime -p
+      register: uptime_result
+      changed_when: false
+
+    - name: Afficher l'uptime
+      debug:
+        msg: "Uptime : {{ uptime_result.stdout }}"
+
+    # -------------------------
+    # Ubuntu / Debian
+    # -------------------------
     - name: Ubuntu/Debian - Récupérer les mises à jour de sécurité
-      shell: |
-        apt-get -s dist-upgrade | grep "^Inst" | grep -i security || true
+      shell: apt-get -s dist-upgrade | grep "^Inst" | grep -i security || true
       register: debian_updates
       changed_when: false
       when: ansible_os_family == "Debian"
@@ -29,33 +40,37 @@
     - name: Afficher les mises à jour de sécurité Ubuntu/Debian
       debug:
         msg: |
-          Nombre de mises à jour de sécurité : {{ debian_updates_count }}
-          Détails :
+          Mises à jour de sécurité : {{ debian_updates_count }}
           {% for pkg in debian_updates.stdout_lines %}
           - {{ pkg }}
           {% endfor %}
       when: ansible_os_family == "Debian"
 
-    - name: RedHat/Fedora (RHEL, CentOS, Alma) - Récupérer les mises à jour critiques
+    - name: Vérifier le statut UFW (Debian)
+      shell: ufw status | grep -q active && echo "Actif" || echo "Inactif"
+      register: firewall_status
+      changed_when: false
+      when: ansible_os_family == "Debian"
+
+    # -------------------------
+    # RHEL / CentOS / Alma / Rocky
+    # -------------------------
+    - name: RedHat/Fedora - Récupérer les mises à jour critiques
       shell: dnf updateinfo list security | grep Critical || true
       register: critical_updates_raw
       changed_when: false
       when: os_family == "redhat"
 
-    - name: RedHat/Fedora (RHEL, CentOS, Alma) - Récupérer les mises à jour importantes
+    - name: RedHat/Fedora - Récupérer les mises à jour importantes
       shell: dnf updateinfo list security | grep Important || true
       register: important_updates_raw
       changed_when: false
       when: os_family == "redhat"
 
-    - name: Compter les mises à jour critiques (RedHat)
+    - name: Compter les mises à jour critiques et importantes (RedHat)
       set_fact:
         critical_count: "{{ critical_updates_raw.stdout_lines | length }}"
         critical_list: "{{ critical_updates_raw.stdout_lines }}"
-      when: os_family == "redhat"
-
-    - name: Compter les mises à jour importantes (RedHat)
-      set_fact:
         important_count: "{{ important_updates_raw.stdout_lines | length }}"
         important_list: "{{ important_updates_raw.stdout_lines }}"
       when: os_family == "redhat"
@@ -63,7 +78,6 @@
     - name: Afficher les mises à jour critiques et importantes (RedHat)
       debug:
         msg: |
-          {{ ansible_hostname }} ({{ ansible_distribution }}):
           Mises à jour CRITIQUES : {{ critical_count }}
           {% for pkg in critical_list %}
           - {{ pkg }}
@@ -74,3 +88,21 @@
           - {{ pkg }}
           {% endfor %}
       when: os_family == "redhat"
+
+    - name: Vérifier le statut de SELinux
+      shell: getenforce
+      register: selinux_status
+      changed_when: false
+      when: os_family == "redhat"
+
+    - name: Vérifier le statut du firewall (firewalld)
+      shell: systemctl is-active firewalld || echo "inactive"
+      register: firewall_status
+      changed_when: false
+      when: os_family == "redhat"
+
+    - name: Afficher les statuts SELinux et Firewall
+      debug:
+        msg: |
+          SELinux : {{ selinux_status.stdout if selinux_status is defined else 'N/A' }}
+          Firewall : {{ firewall_status.stdout if firewall_status is defined else 'N/A' }}
