@@ -9,14 +9,14 @@
     selinux_status_result: "N/A"
 
   tasks:
-    - name: Créer le dossier de rapports sur AWX (si nécessaire)
+    - name: Créer le dossier de rapports local dans /tmp
       file:
-        path: "/var/lib/awx/reports"
+        path: "/tmp/awx_reports"
         state: directory
         mode: '0777'
       delegate_to: localhost
-      become: true  # cette fois on autorise l'élévation
-      become_user: root
+      become: false
+
   
     - name: Déterminer la distribution Linux
       set_fact:
@@ -160,7 +160,7 @@
     - name: Enregistrer les résultats dans un fichier JSON (temporaire)
       copy:
         content: "{{ host_report | to_nice_json }}"
-        dest: "/var/lib/awx/reports/ansible_report_{{ inventory_hostname }}.json"
+        dest: "/tmp/awx_reports/ansible_report_{{ inventory_hostname }}.json"
       delegate_to: localhost
       become: false  # <- important ici
       run_once: false
