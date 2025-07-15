@@ -157,6 +157,10 @@
       become: false  # <- important ici
       run_once: false
 
+    - name: DEBUG - Afficher le rapport JSON
+      debug:
+        var: host_report
+
     - name: Enregistrer les résultats dans un fichier JSON (temporaire)
       copy:
         content: "{{ host_report | to_nice_json }}"
