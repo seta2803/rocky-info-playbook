@@ -100,18 +100,23 @@
       register: redhat_firewall_status
       changed_when: false
       when: os_family == "redhat"
+      
+    - name: Déterminer le statut combiné du firewall
+      set_fact:
+        firewall_status_result: >-
+          {% if redhat_firewall_status is defined %}
+            {{ redhat_firewall_status.stdout }}
+          {% elif debian_firewall_status is defined %}
+            {{ debian_firewall_status.stdout }}
+          {% else %}
+            N/A
+          {% endif %}
 
-    - name: Afficher les statuts SELinux et Firewall
+     - name: Afficher les statuts SELinux et Firewall
       debug:
         msg: |
           SELinux : {{ selinux_status.stdout if selinux_status is defined else 'N/A' }}
-          Firewall : {{
-        (redhat_firewall_status.stdout if redhat_firewall_status is defined else
-        debian_firewall_status.stdout if debian_firewall_status is defined else
-        'N/A')
-      }}
-      # (à placer à la fin de ton playbook existant)
-    # (à placer à la fin de ton playbook existant)
+          Firewall : {{ firewall_status_result }}
 
     - name: Préparer les données pour le rapport
       set_fact:
