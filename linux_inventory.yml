@@ -16,7 +16,7 @@
 
     - name: Ubuntu/Debian - Récupérer les mises à jour de sécurité
       shell: |
-        apt list --upgradable 2>/dev/null | grep -i security || true
+        udo apt-get -s dist-upgrade | grep "^Inst" | grep -i security || true
       when: os_family == "debian"
       register: debian_updates
       changed_when: false
