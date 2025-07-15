@@ -112,8 +112,8 @@
     - name: Afficher les statuts SELinux et Firewall
       debug:
         msg: |
-          SELinux : {{ selinux_status.stdout if selinux_status is defined else 'N/A' }}
-          Firewall : {{ firewall_status_result }}
+          SELinux : {{ selinux_status.stdout | default('N/A') }}
+          Firewall : {{ firewall_status_result | default('N/A') }}
 
     - name: Préparer les données pour le rapport
       set_fact:
