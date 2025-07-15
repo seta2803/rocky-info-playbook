@@ -4,20 +4,7 @@
   become: yes
   gather_facts: yes
 
-  vars:
-    firewall_status_result: "N/A"
-    selinux_status_result: "N/A"
-
   tasks:
-    - name: Créer le dossier de rapports local dans /tmp
-      file:
-        path: "/tmp/awx_reports"
-        state: directory
-        mode: '0777'
-      delegate_to: localhost
-      become: false
-
-  
     - name: Déterminer la distribution Linux
       set_fact:
         os_family: "{{ ansible_os_family | lower }}"
@@ -36,19 +23,17 @@
       debug:
         msg: "Uptime : {{ uptime_result.stdout }}"
 
-    # -------------------------
     # Ubuntu / Debian
-    # -------------------------
     - name: Ubuntu/Debian - Récupérer les mises à jour de sécurité
       shell: apt-get -s dist-upgrade | grep "^Inst" | grep -i security || true
       register: debian_updates
       changed_when: false
-      when: ansible_os_family == "Debian"
+      when: os_family == "debian"
 
     - name: Compter les mises à jour de sécurité (Debian)
       set_fact:
         debian_updates_count: "{{ debian_updates.stdout_lines | length }}"
-      when: ansible_os_family == "Debian"
+      when: os_family == "debian"
 
     - name: Afficher les mises à jour de sécurité Ubuntu/Debian
       debug:
@@ -57,17 +42,15 @@
           {% for pkg in debian_updates.stdout_lines %}
           - {{ pkg }}
           {% endfor %}
-      when: ansible_os_family == "Debian"
+      when: os_family == "debian"
 
     - name: Vérifier le statut UFW (Debian)
       shell: ufw status | grep -q active && echo "Actif" || echo "Inactif"
       register: debian_firewall_status
       changed_when: false
-      when: ansible_os_family == "Debian"
+      when: os_family == "debian"
 
-    # -------------------------
-    # RHEL / CentOS / Alma / Rocky
-    # -------------------------
+    # RedHat / CentOS / Alma / Rocky
     - name: RedHat/Fedora - Récupérer les mises à jour critiques
       shell: dnf updateinfo list security | grep Critical || true
       register: critical_updates_raw
@@ -114,30 +97,23 @@
       changed_when: false
       when: os_family == "redhat"
 
-    # -------------------------
-    # Statuts combinés
-    # -------------------------
-    - name: Définir le statut combiné du firewall
+    - name: Déterminer le statut combiné du firewall
       set_fact:
         firewall_status_result: >-
-          {{ redhat_firewall_status.stdout if (os_family == 'redhat' and redhat_firewall_status is defined and 'stdout' in redhat_firewall_status) else
-             debian_firewall_status.stdout if (os_family == 'debian' and debian_firewall_status is defined and 'stdout' in debian_firewall_status) else
-             'N/A' }}
-
-    - name: Définir le statut combiné de SELinux
-      set_fact:
-        selinux_status_result: >-
-          {{ selinux_status.stdout if (selinux_status is defined and 'stdout' in selinux_status) else 'N/A' }}
+          {% if redhat_firewall_status is defined %}
+            {{ redhat_firewall_status.stdout }}
+          {% elif debian_firewall_status is defined %}
+            {{ debian_firewall_status.stdout }}
+          {% else %}
+            N/A
+          {% endif %}
 
     - name: Afficher les statuts SELinux et Firewall
       debug:
         msg: |
-          SELinux : {{ selinux_status_result }}
+          SELinux : {{ selinux_status.stdout if selinux_status is defined else 'N/A' }}
           Firewall : {{ firewall_status_result }}
 
-    # -------------------------
-    # Rapport JSON
-    # -------------------------
     - name: Préparer les données pour le rapport
       set_fact:
         host_report: >-
@@ -146,25 +122,21 @@
               'hostname': ansible_hostname,
               'os': ansible_distribution ~ ' ' ~ ansible_distribution_version,
               'uptime': uptime_result.stdout | default('N/A'),
-              'selinux': selinux_status_result,
-              'firewall': firewall_status_result,
+              'selinux': selinux_status.stdout | default('N/A'),
+              'firewall': firewall_status_result | default('N/A'),
               'critical_updates': critical_count | default(0),
               'important_updates': important_count | default(0),
               'debian_security_updates': debian_updates_count | default(0)
             }
           }}
-      delegate_to: localhost
-      become: false  # <- important ici
-      run_once: false
 
-    - name: DEBUG - Afficher le rapport JSON
-      debug:
-        var: host_report
-
-    - name: Enregistrer les résultats dans un fichier JSON (temporaire)
+    - name: Enregistrer le rapport JSON sur le noeud distant
       copy:
         content: "{{ host_report | to_nice_json }}"
-        dest: "/tmp/awx_reports/ansible_report_{{ inventory_hostname }}.json"
-      delegate_to: localhost
-      become: false  # <- important ici
-      run_once: false
+        dest: "/tmp/ansible_report_{{ inventory_hostname }}.json"
+
+    - name: Récupérer le rapport sur la machine de contrôle AWX
+      fetch:
+        src: "/tmp/ansible_report_{{ inventory_hostname }}.json"
+        dest: "/var/lib/awx/reports/"
+        flat: yes
