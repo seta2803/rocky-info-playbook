@@ -100,13 +100,14 @@
     - name: Déterminer le statut combiné du firewall
       set_fact:
         firewall_status_result: >-
-          {% if redhat_firewall_status is defined %}
+          {% if redhat_firewall_status is defined and redhat_firewall_status.stdout is defined %}
             {{ redhat_firewall_status.stdout }}
-          {% elif debian_firewall_status is defined %}
+          {% elif debian_firewall_status is defined and debian_firewall_status.stdout is defined %}
             {{ debian_firewall_status.stdout }}
           {% else %}
             N/A
           {% endif %}
+
 
     - name: Afficher les statuts SELinux et Firewall
       debug:
