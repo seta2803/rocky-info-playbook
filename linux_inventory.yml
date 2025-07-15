@@ -48,7 +48,7 @@
 
     - name: Vérifier le statut UFW (Debian)
       shell: ufw status | grep -q active && echo "Actif" || echo "Inactif"
-      register: firewall_status
+      register: debian_firewall_status
       changed_when: false
       when: ansible_os_family == "Debian"
 
@@ -97,7 +97,7 @@
 
     - name: Vérifier le statut du firewall (firewalld)
       shell: systemctl is-active firewalld || echo "inactive"
-      register: firewall_status
+      register: redhat_firewall_status
       changed_when: false
       when: os_family == "redhat"
 
@@ -105,7 +105,11 @@
       debug:
         msg: |
           SELinux : {{ selinux_status.stdout if selinux_status is defined else 'N/A' }}
-          Firewall : {{ firewall_status.stdout if firewall_status is defined else 'N/A' }}
+          Firewall : {{
+        (redhat_firewall_status.stdout if redhat_firewall_status is defined else
+        debian_firewall_status.stdout if debian_firewall_status is defined else
+        'N/A')
+      }}
       # (à placer à la fin de ton playbook existant)
     # (à placer à la fin de ton playbook existant)
 
