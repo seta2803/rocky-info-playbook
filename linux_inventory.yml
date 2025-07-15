@@ -4,6 +4,10 @@
   become: yes
   gather_facts: yes
 
+  vars:
+    firewall_status_result: "N/A"
+    selinux_status_result: "N/A"
+
   tasks:
     - name: Déterminer la distribution Linux
       set_fact:
@@ -100,22 +104,31 @@
       register: redhat_firewall_status
       changed_when: false
       when: os_family == "redhat"
-      
-    - name: Déterminer le statut combiné du firewall
+
+    # -------------------------
+    # Statuts combinés
+    # -------------------------
+    - name: Définir le statut combiné du firewall
       set_fact:
         firewall_status_result: >-
-          {{
-            (redhat_firewall_status.stdout if (redhat_firewall_status is defined and 'stdout' in redhat_firewall_status) else
-            debian_firewall_status.stdout if (debian_firewall_status is defined and 'stdout' in debian_firewall_status) else
-            'N/A')
-          }}
+          {{ redhat_firewall_status.stdout if (os_family == 'redhat' and redhat_firewall_status is defined and 'stdout' in redhat_firewall_status) else
+             debian_firewall_status.stdout if (os_family == 'debian' and debian_firewall_status is defined and 'stdout' in debian_firewall_status) else
+             'N/A' }}
+
+    - name: Définir le statut combiné de SELinux
+      set_fact:
+        selinux_status_result: >-
+          {{ selinux_status.stdout if (selinux_status is defined and 'stdout' in selinux_status) else 'N/A' }}
 
     - name: Afficher les statuts SELinux et Firewall
       debug:
         msg: |
-          SELinux : {{ selinux_status.stdout if selinux_status is defined else 'N/A' }}
+          SELinux : {{ selinux_status_result }}
           Firewall : {{ firewall_status_result }}
 
+    # -------------------------
+    # Rapport JSON
+    # -------------------------
     - name: Préparer les données pour le rapport
       set_fact:
         host_report: >-
@@ -124,8 +137,8 @@
               'hostname': ansible_hostname,
               'os': ansible_distribution ~ ' ' ~ ansible_distribution_version,
               'uptime': uptime_result.stdout | default('N/A'),
-              'selinux': selinux_status.stdout | default('N/A'),
-              'firewall': firewall_status.stdout | default('N/A'),
+              'selinux': selinux_status_result,
+              'firewall': firewall_status_result,
               'critical_updates': critical_count | default(0),
               'important_updates': important_count | default(0),
               'debian_security_updates': debian_updates_count | default(0)
@@ -133,7 +146,7 @@
           }}
       delegate_to: localhost
       run_once: false
-    
+
     - name: Enregistrer les résultats dans un fichier JSON (temporaire)
       copy:
         content: "{{ host_report | to_nice_json }}"
