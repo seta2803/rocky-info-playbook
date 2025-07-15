@@ -106,3 +106,30 @@
         msg: |
           SELinux : {{ selinux_status.stdout if selinux_status is defined else 'N/A' }}
           Firewall : {{ firewall_status.stdout if firewall_status is defined else 'N/A' }}
+      # (à placer à la fin de ton playbook existant)
+    # (à placer à la fin de ton playbook existant)
+
+    - name: Préparer les données pour le rapport
+      set_fact:
+        host_report: >-
+          {{
+            {
+              'hostname': ansible_hostname,
+              'os': ansible_distribution ~ ' ' ~ ansible_distribution_version,
+              'uptime': uptime_result.stdout | default('N/A'),
+              'selinux': selinux_status.stdout | default('N/A'),
+              'firewall': firewall_status.stdout | default('N/A'),
+              'critical_updates': critical_count | default(0),
+              'important_updates': important_count | default(0),
+              'debian_security_updates': debian_updates_count | default(0)
+            }
+          }}
+      delegate_to: localhost
+      run_once: false
+    
+    - name: Enregistrer les résultats dans un fichier JSON (temporaire)
+      copy:
+        content: "{{ host_report | to_nice_json }}"
+        dest: "/tmp/ansible_report_{{ inventory_hostname }}.json"
+      delegate_to: localhost
+      run_once: false
